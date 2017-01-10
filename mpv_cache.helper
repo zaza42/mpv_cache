@@ -1,0 +1,627 @@
+#!/bin/lksh
+# Pointless Fullscreen Script 5.0
+#    run mpv via mozplugger
+#    with tools: mksh (bash), xdotool, nc.openbsd, gcap, xdpyinfo, gcap
+#     apt-get install mksh x11-utils mpv xdotool netcat-openbsd mozplugger gcap
+#     url2title: https://github.com/erichgoldman/add-url-to-window-title
+#
+# mini help about keys:
+#   'f' | double click --> fullscreeen from youtube
+#   'q' | double click , esc --> switch back from fullscreen
+#   'Q' | ctrl + q | close the window --> force quit without switchback
+#   'w' --> mini ontop window at bottom right corner
+#   'V' --> load subtitles
+#   'v' --> toggle subtitles visibility
+#   space | right click --> (un)pause
+#
+# 2016 (c) DC-1
+#
+#FUTXV=$(cat /proc/{`pgrep -d, mpv`}/cmdline|tr -s "\0" " " |grep -m1 -o "vo xv")
+#if [ "$FUTXV" = "" ]; then
+#    voembedded="-vo xv --sub-scale=0.8 --vd-lavc-fast --vd-lavc-skiploopfilter=all"
+#    #voembedded="-vo x11 --sub-scale=0.8"
+#else
+    voembedded="-vo x11 --framedrop=vo --sub-scale=0.8 --vd-lavc-framedrop=all --vd-lavc-fast --vd-lavc-skiploopfilter=all"
+#fi
+vofs="-vo xv --sub-scale=0.7  --framedrop=decoder+vo"
+#vofslarge="-vo xv:adaptor=0 --sub-scale=0.7"
+#vofslarge="-vo xv:adaptor=1:buffers=4 --sub-scale=0.7 --vd-lavc-skiploopfilter=all"
+#vofslarge="-vo xv:adaptor=0 --sub-scale=0.7"
+vofslarge="-vo xv --xv-adaptor=0 --xv-buffers=4 --sub-scale=0.7"
+extraparams="--no-ytdl --demuxer-readahead-secs=2 --demuxer=+lavf --cache-secs=2 --demuxer-thread=yes --osd-bar-w=40 --sub-pos=95 --sub-border-size=6 --sub-border-color=0/0/0/1 --osd-bar-align-y=-0.80 --osd-bar-align-x=-0.8 --osd-font-size=30 --osd-duration=2000 --script-opts=osc-layout=bottombar,osc-fadeduration=500,osc-timetotal=yes,osc-deadzonesize=1,osc-seekbarstyle=bar,osc-minmousemove=1"
+#--video-sync=display-resample --brightness=10 
+#extraparams="--demuxer-thread=no --osd-bar-w=40 --sub-pos=95 --sub-text-border-size=6 --sub-text-border-color=0/0/0/1 --osd-bar-align-y=-0.80 --osd-bar-align-x=-0.8 --osd-font-size=30 --osd-duration=2000 --script-opts=osc-layout=bottombar,osc-fadeduration=500,osc-timetotal=yes,osc-deadzonesize=1,osc-seekbarstyle=bar,osc-minmousemove=1"
+#extraparams="--demuxer=+lavf --demuxer-lavf-analyzeduration=1 --demuxer-lavf-allow-mimetype=no --demuxer-thread=no --osd-bar-w=40 --sub-pos=95 --sub-text-border-size=6 --sub-text-border-color=0/0/0/1 --osd-bar-align-y=-0.80 --osd-bar-align-x=-0.8 --osd-font-size=30 --osd-duration=2000 --script-opts=osc-layout=bottombar,osc-fadeduration=500,osc-timetotal=yes,osc-deadzonesize=1,osc-seekbarstyle=bar,osc-minmousemove=1"
+#extraparams="--osd-font-size=30 --osd-duration=2000 --script-opts=osc-layout=bottombar,osc-fadeduration=500,osc-timetotal=yes,osc-deadzonesize=1,osc-seekbarstyle=bar,osc-minmousemove=1"
+autoloadsub=false        # load subtitles on start
+sublang="en hu"         # preferrend languages of subtitles
+CACHE=1024              # mpv cache size
+SECPLUS=3               # delay before pause (waiting filling cache)
+MINIDELAY=0.5           # delay between dots
+INFODELAY=3000          # osd default delay
+PFSTEMPDIR=/dev/shm     # temporary files
+#
+THISSCRIPT=$0
+
+if [ "$1" = "" ]; then
+    echo 'Write path of this script to /etc/mozpluggerrc.d/40-global_defs.conf
+Replace the 3rd mplayer related lines with:
+
+define(MP_CMD,['$(readlink -f $THISSCRIPT)' mozplug -really-quiet $1 </dev/null])
+define(MP_EMBED,[embed ignore_errors: MP_CMD(--autofit=$width -wid $window $1 )])
+define(MP_NOEMBED,[noembed noisy ignore_errors maxaspect swallow(mpv): MP_CMD($1)])
+
+then run: update-mozpluggerrc
+'
+    exit 1
+fi
+
+function checkconfig ()
+{
+    INPUTVIEWTUBE="$IDP.input-viewtube.conf"
+    if ! [ -a "$INPUTVIEWTUBE" ]; then
+	echo 'Ctrl+f stop; run /home/DC-1/scripts/daemon.sh '$THISSCRIPT' fsstart "${options/input-ipc-server}" "${path}" "${=time-pos}" "${width}" "${height}";
+f run /home/DC-1/scripts/daemon.sh '$THISSCRIPT' fsstart "${options/input-ipc-server}" "${path}" "${=time-pos}" "${width}" "${height}" ;
+MOUSE_BTN0_DBL run /home/DC-1/scripts/daemon.sh '$THISSCRIPT' fsstart "${options/input-ipc-server}" "${path}" "${=time-pos}" "${width}" "${height}";
+w run /home/DC-1/scripts/daemon.sh '$THISSCRIPT' wstart "${options/input-ipc-server}" "${path}" "${=time-pos}" "${width}" "${height}";
+Shift+v run '$THISSCRIPT' subload "${options/input-ipc-server}";
+Shift+g run audtool playlist-addurl "${path}"; show-text audacious_add
+k run '$THISSCRIPT' ladspa "${options/input-ipc-server}";
+b add sub-scale -0.1
+n add sub-scale +0.1
+d cycle framedrop
+Shift+d cycle deinterlace
+MOUSE_BTN3 add ao-volume 3
+MOUSE_BTN4 add ao-volume -3
+PGUP seek 600
+PGDWN seek -600
+9 add ao-volume -1
+0 add ao-volume 1
+m cycle ao-mute
+a run rtaudio.sh
+i show-text "${width} x ${height} ${video-format} ${video-bitrate} + ${audio-bitrate} ${audio-codec-name} "'$INFODELAY \
+	> "$INPUTVIEWTUBE"
+    fi
+    INPUTPFS="$IDP.input-pfs.conf"
+    if ! [ -a "$INPUTPFS" ]; then
+	echo 'q run '$THISSCRIPT' fsstop "${options/input-ipc-server}" "${path}";
+esc run '$THISSCRIPT' fsstop "${options/input-ipc-server}" "${path}";
+MOUSE_BTN0_DBL run '$THISSCRIPT' fsstop "${options/input-ipc-server}" "${path}";
+Shift+g run audtool playlist-addurl "${path}";
+Ctrl+q quit;
+Shift+q quit;
+Shift+v run '$THISSCRIPT' subload "${options/input-ipc-server}";
+k run '$THISSCRIPT' ladspa "${options/input-ipc-server}";
+w run mvid.sh;
+b add sub-scale -0.1
+n add sub-scale +0.1
+d cycle framedrop
+Shift+d cycle deinterlace
+MOUSE_BTN3 add ao-volume 3
+MOUSE_BTN4 add ao-volume -3
+PGUP seek 600
+PGDWN seek -600
+i show-text "${width} x ${height} ${video-format} ${video-bitrate} + ${audio-bitrate} ${audio-codec-name} "'$INFODELAY'
+4 add brightness 4
+8 add saturation 4
+$ add brightness 20
+* add saturation 20
+9 add ao-volume -1
+0 add ao-volume 1
+m cycle ao-mute
+' \
+	> "$INPUTPFS"
+    fi
+}
+
+function getprop ()
+{
+    local SOCKET=$1
+    local PROPERTY=$2
+    local GETPROP=$(echo '{ "command": ["get_property", "'$PROPERTY'"] }' \
+        | nc.openbsd -U $SOCKET )
+    GETPROP=${GETPROP##*data\":}
+    GETPROP=${GETPROP%%,\"*}
+    echo "$GETPROP"
+}
+
+function setprop ()
+{
+    local SOCKET=$1
+    local PROPERTY=$2
+    local VALUE=$3
+    echo '{ "command": ["set_property_string", "'$PROPERTY'" , "'$VALUE'" ] }' \
+        | nc.openbsd -U $SOCKET
+}
+
+function getpos ()
+{
+    local TP=$(getprop "$1" playback-time)
+    local SECS=${TP%.*}
+    local MSECS=${TP#*.}
+    SECS=$((SECS + $2))
+    echo "$SECS.$MSECS"
+}
+
+function streame ()
+{
+    case "$(getprop "$PSOCKET" duration)" in 
+	*"error"*) STREAM=true
+	;;
+	*) STREAM=false
+	;;
+    esac
+}
+
+function idpdetect2 () 
+{
+    mpvsocket=${1//\"/}
+    IDP=${mpvsocket%*.socket*}
+    FSFIFO="$IDP.fifofs"
+    FSSOCKET="$IDP.socketfs"
+    PFIFO="$IDP.fifo"
+    PSOCKET="$IDP.socket"
+    read PMPID < $IDP.pmpid
+    read PMPVPID < $IDP.pmpvpid
+}
+
+function resolutiondetect ()
+{
+    local resxy=$(xdpyinfo | grep -oP 'dimensions:    \K\w+')
+    RESX=${resxy%x*}
+    RESY=${resxy#*x}
+    ASPECT=$(( 100 * $RESX / $RESY ))
+}
+
+function loadsub ()
+{
+    FIFO=$1
+    if [ -f $IDP.url ] ;then 
+	read PMURL < $IDP.url
+    else
+	PMURL=$(pmurl.sh)
+	echo "$PMURL" > $IDP.url
+    fi
+    PMURL=${PMURL%%&*}
+    if ! [ "$2" = "quiet" ] ; then echo "show-text loadsub. 10000" > "$FIFO";fi
+    mkdir $IDP.sub
+    cd $IDP.sub
+    potty=.
+    nice -n 5 gcap "$PMURL" 2>&1 | while IFS="\n" read line; 
+        do
+            export potty=${potty}.
+            if ! [ "$2" = "quiet" ] ; then echo "show-text loadsub${potty} 3000" > "$FIFO";fi
+        done
+    for sub in $sublang;do
+	srtfile=$(ls -1 *${sub}.srt 2>/dev/null)
+	echo "sub-add $IDP.sub/$srtfile cached" > "$FIFO"
+	echo "show-text \"$srtfile loaded\" $INFODELAY" > "$FIFO"
+#	if ! [ "$srtfile" = "" ]; then break;fi
+    done
+    if [ "$srtfile" = "" ] && ! [ "$2" = "quiet" ]; then
+	echo "show-text \"no subtitle found at: $PMURL\" $INFODELAY" > "$FIFO"
+    fi
+#    if ! [ "$srtfile" = "" ]; then
+#    fi
+}
+
+function ladspaswitch ()
+{
+    FIFO=$1
+    outsink=$(pactl list sink-inputs|grep \"$PPID\"$ -B 21|grep -oP 'Sink: \K.*')
+    mpvsink=$(pactl list sink-inputs|grep \"$PPID\"$ -B 21|grep -oP '^Sink\ Input #\K.*')
+#    echo mpv: $mpvsink out: $outsink fifo: $FIFO >> /tmp/mlog
+    if [ $outsink -eq 0 ];then
+	pactl move-sink-input $mpvsink 2
+	echo "show-text \"audio to ladspa\" $INFODELAY" > "$FIFO"
+    else
+	pactl move-sink-input $mpvsink 0
+	echo "show-text \"audio to default\" $INFODELAY" > "$FIFO"
+    fi
+
+}
+###########################################################
+###
+###   F S S T A R T
+###
+##########################################################
+function fsstart () {
+#    echo "fsstartparams $@" 1>&2
+    idpdetect2 "$2"
+    trap "rm -f $IDP.*fs; exit" SIGHUP SIGINT SIGTERM
+    checkconfig
+    streame
+    resolutiondetect
+#    shift 2 "$@"
+    TIMEPOS="$4"
+    WIDTH="$5"
+    HEIGHT="$6"
+    if [ -a "$FSFIFO" ]; then 
+	echo "show-text ERROR:already_fullscreen $INFODELAY" > "$PFIFO"
+	exit 1
+    fi
+    mkfifo "$FSFIFO"
+    echo "show-text switching2fullscreen 30000" > "$PFIFO"
+#    PMPID=$(pgrep palemoon)
+    kill -19 $PMPID
+    if [ $WIDTH -lt 1000 ] ;then
+	VO=$vofs
+    else
+        VO=$vofslarge
+    fi
+    if [ $(( 100 * $WIDTH / $HEIGHT  )) -gt $ASPECT ]; then
+	MAXY=$((100 * $WIDTH / $ASPECT ))
+#	VFEXPAND="-vf=expand=0:$EXPANDY"
+	EXPANDY=$(($WIDTH / 25 ))
+	if [ $EXPANDY -gt $MAXY ]; then EXPANDY=$MAXY;fi
+	VFEXPAND="-vf=expand=0:-$EXPANDY:0:0"
+    elif [ $(( 100 * $WIDTH / $HEIGHT  )) -le $ASPECT ]; then
+		VFEXPAND="-vf=expand=::::$RESX/$RESY"
+    fi
+    for tn in 0 1 2 3 4; do
+	if [ "$(getprop $PSOCKET track-list/$tn/type)" = "\"sub\"" ];
+	    then srtfile=$(getprop "$PSOCKET" track-list/$tn/external-filename)
+		break
+	fi
+    done
+    if ! [ "$srtfile" = "" ]; then
+	SUBTITLE="--sub-file ${srtfile//\"/}"
+    fi
+    read TITLE < $IDP.title
+    IFPAUSE=$(getprop "$PSOCKET" pause)
+    if [ "$STREAM" = "true" ]; then STARTTIME=""
+	else STARTTIME="--start=$TIMEPOS"
+    fi
+#--msg-level=all=v
+#    ionice -c2 -n0 -p $$
+#    nice -n5 
+#        --cache=128 --cache-default=128 \
+    mpv "$3" $VO $SUBTITLE --pause $STARTTIME --no-ytdl \
+        --input-file="$FSFIFO" $VFEXPAND $extraparams \
+        --input-ipc-server="$FSSOCKET" \
+        --input-conf="$INPUTPFS" \
+        --hr-seek \
+        --cache=$CACHE \
+	--force-media-title="$TITLE" \
+        --autofit-larger=20%x20% --geometry=90%:90% &
+#        --autofit-larger=20%x20% --geometry=90%:90% 2>/dev/null >/dev/null &
+    FSMPVPID=$!
+    while ! [ -a "$FSSOCKET" ] ; do
+	potty="${potty}."
+	echo "show-text switching2fullscreen${potty} $INFODELAY" > "$PFIFO"
+	sleep $MINIDELAY
+    done
+    n=0
+    while ! [ "$(getprop $FSSOCKET cache-idle)" = "true" ];do
+	if [ $((n++)) -gt 20 ];then 
+	    echo "show-text switching2fullscreen${potty}failed $INFODELAY" > "$PFIFO"
+	    exit 1
+	fi
+	potty="${potty}."
+	echo "show-text switching2fullscreen${potty} $INFODELAY" > "$PFIFO"
+	sleep $MINIDELAY
+    done
+    renice -1 $$ 2>/dev/null 1>&2
+    IFPAUSE=$(getprop "$PSOCKET" pause)
+    if ! [ "$IFPAUSE" = "true" ]; then
+	if [ $STREAM = true ]; then 
+		echo "set cache-size $CACHE" > $FSFIFO
+		echo cycle pause > "$PFIFO"
+		echo cycle pause > "$FSFIFO"
+		echo "show-text \"live video: ${TITLE:0:30}\" $INFODELAY" > "$FSFIFO"
+	else
+	    TIMESOURCE=$(getpos "$PSOCKET" $SECPLUS) 
+	    (   sleep $SECPLUS
+		echo cycle pause > "$PFIFO"
+		echo cycle pause > "$FSFIFO" 
+		echo "show-text \" ($(( ${TIMESOURCE%.*} - ${TIMEPOS%.*} )) s) ${TITLE}\" $INFODELAY" > "$FSFIFO"
+	    ) &
+	    renice -n -1 $FSMPVPID 2>/dev/null 1>&2
+	    TIMESOURCE=$(getpos "$PSOCKET" $SECPLUS) 
+	    echo "set hr-seek yes" > "$FSFIFO"
+	    echo "show-text seeking $((SECPLUS - 1 ))000" > $FSFIFO
+	    echo "seek $TIMESOURCE absolute" > $FSFIFO
+	    echo "set cache-size $CACHE" > $FSFIFO
+	    potty="${potty}."
+	    echo "show-text switching2fullscreen${potty} $((SECPLUS - 1 ))000" > "$PFIFO"
+	    sleep $((SECPLUS - 1)).3
+	fi
+	echo "cycle fullscreen" > "$FSFIFO"
+        echo "show-text switching2fullscreen${potty}start" > "$PFIFO"
+    else
+	echo "set cache-size $CACHE" > $FSFIFO
+	if ! [ $STREAM = true ]; then 
+	    TIMESOURCE=$(getpos "$PSOCKET" 0)
+	    echo "seek $TIMESOURCE absolute" > "$FSFIFO"
+	fi
+        echo cycle fullscreen > "$FSFIFO"
+    fi
+    renice -n -1 $FSMPVPID 2>/dev/null 1>&2
+#    FSMPVWIN=$(xdotool search --sync --onlyvisible --pid $FSMPVPID)
+    FSMPVWIN=$(xdotool search --sync --pid $FSMPVPID)
+    xdotool windowactivate $FSMPVWIN
+    wait
+    if ! [ -a "$IDP.quitfs" ];then echo quit > "$PFIFO";fi
+    rm -f $IDP.*fs
+    kill -18 $PMPID
+}
+
+function wstart () {
+#    echo "fsstartparams $@" 1>&2
+    idpdetect2 "$2"
+    trap "rm -f $IDP.*fs; exit" SIGHUP SIGINT SIGTERM
+    checkconfig
+    streame
+    resolutiondetect
+#    shift 2 "$@"
+    TIMEPOS="$4"
+    WIDTH="$5"
+    HEIGHT="$6"
+    if [ -a "$FSFIFO" ]; then 
+	echo "show-text ERROR:already_fullscreen $INFODELAY" > "$PFIFO"
+	exit 1
+    fi
+    mkfifo "$FSFIFO"
+    echo "show-text switching2window 30000" > "$PFIFO"
+#    kill -19 $PMPID
+	VO=$vofs
+    if [ $(( 100 * $WIDTH / $HEIGHT  )) -gt $ASPECT ]; then
+	MAXY=$((100 * $WIDTH / $ASPECT ))
+#	VFEXPAND="-vf=expand=0:$EXPANDY"
+	EXPANDY=$(($WIDTH / 25 ))
+	if [ $EXPANDY -gt $MAXY ]; then EXPANDY=$MAXY;fi
+	VFEXPAND="-vf=expand=0:-$EXPANDY:0:0"
+    else if [ $(( 100 * $WIDTH / $HEIGHT  )) -le $ASPECT ]; then
+		VFEXPAND="-vf=expand=::::$RESX/$RESY"
+	fi
+    fi
+    for tn in 0 1 2 3 4; do
+	if [ "$(getprop $PSOCKET track-list/$tn/type)" = "\"sub\"" ];
+	    then srtfile=$(getprop "$PSOCKET" track-list/$tn/external-filename)
+		break
+	fi
+    done
+    if ! [ "$srtfile" = "" ]; then
+	SUBTITLE="--sub-file ${srtfile//\"/}"
+    fi
+    read TITLE < $IDP.title
+    IFPAUSE=$(getprop "$PSOCKET" pause)
+    if [ "$STREAM" = "true" ]; then STARTTIME=""
+	else STARTTIME="--start=$TIMEPOS"
+    fi
+#--msg-level=all=v
+    ionice -c2 -n0 -p $$
+#    nice -n5 
+#        --cache=128 --cache-default=128 \
+    mpv "$3" $VO $SUBTITLE --pause $STARTTIME --no-ytdl \
+        --input-file="$FSFIFO" $VFEXPAND $extraparams \
+        --input-ipc-server="$FSSOCKET" \
+        --input-conf="$INPUTPFS" \
+        --hr-seek \
+        --cache=$CACHE \
+	--force-media-title="$TITLE" \
+        --autofit-larger=20%x20% --geometry=90%:90% &
+#        --autofit-larger=20%x20% --geometry=90%:90% 2>/dev/null >/dev/null &
+    FSMPVPID=$!
+    while ! [ -a "$FSSOCKET" ] ; do
+	potty="${potty}."
+	echo "show-text switching2window${potty} $INFODELAY" > "$PFIFO"
+	sleep $MINIDELAY
+    done
+    while ! [ "$(getprop $FSSOCKET cache-idle)" = "true" ];do
+	potty="${potty}."
+	echo "show-text switching2window${potty} $INFODELAY" > "$PFIFO"
+	sleep $MINIDELAY
+    done
+    renice -1 $$ 2>/dev/null 1>&2
+    IFPAUSE=$(getprop "$PSOCKET" pause)
+    if ! [ "$IFPAUSE" = "true" ]; then
+	if [ $STREAM = true ]; then 
+		echo "set cache-size $CACHE" > $FSFIFO
+		echo cycle pause > "$PFIFO"
+		echo cycle pause > "$FSFIFO"
+		echo "show-text \"live video: ${TITLE:0:30}\" $INFODELAY" > "$FSFIFO"
+	else
+	    TIMESOURCE=$(getpos "$PSOCKET" $SECPLUS) 
+	    (   sleep $SECPLUS
+		echo cycle pause > "$PFIFO"
+		echo cycle pause > "$FSFIFO" 
+		echo "show-text \" ($(( ${TIMESOURCE%.*} - ${TIMEPOS%.*} )) s) ${TITLE}\" $INFODELAY" > "$FSFIFO"
+	    ) &
+	    renice -n -1 $FSMPVPID 2>/dev/null 1>&2
+	    TIMESOURCE=$(getpos "$PSOCKET" $SECPLUS) 
+	    echo "set hr-seek yes" > "$FSFIFO"
+	    echo "show-text seeking $((SECPLUS - 1 ))000" > $FSFIFO
+	    echo "seek $TIMESOURCE absolute" >> /tmp/ts.log
+	    echo "seek $TIMESOURCE absolute" > $FSFIFO
+	    echo "set cache-size $CACHE" > $FSFIFO
+	    potty="${potty}."
+	    echo "show-text switching2window${potty} $((SECPLUS - 1 ))000" > "$PFIFO"
+	    sleep $((SECPLUS - 1)).3
+	fi
+#	echo "cycle fullscreen" > "$FSFIFO"
+        echo "show-text switching2window${potty}start" > "$PFIFO"
+    else
+	echo "set cache-size $CACHE" > $FSFIFO
+	if ! [ $STREAM = true ]; then 
+	    TIMESOURCE=$(getpos "$PSOCKET" 0)
+	    echo "seek $TIMESOURCE absolute" > "$FSFIFO"
+	    echo "seek $TIMESOURCE absolute" > /tmp/ts.log
+	fi
+#        echo cycle fullscreen > "$FSFIFO"
+    fi
+    renice -n -1 $FSMPVPID 2>/dev/null 1>&2
+    FSMPVWIN=$(xdotool search --sync --onlyvisible --pid $FSMPVPID)
+    xdotool windowactivate $FSMPVWIN
+    icesh -window $FSMPVWIN setState AllWorkspaces 1
+    icesh -window $FSMPVWIN setLayer 6
+    icesh -window $FSMPVWIN setGeometry 488x292+790+464
+
+    wait
+    if ! [ -a "$IDP.quitfs" ];then echo quit > "$PFIFO";fi
+    rm -f $IDP.*fs
+    kill -18 $PMPID
+}
+
+#########################################
+#
+#    F S S T O P
+#
+#########################################
+case "$1" in
+  fsstop )
+    idpdetect2 "$2"
+    if [ -a "$IDP.quitfs" ];then exit 1;fi
+    touch "$IDP.quitfs"
+    echo "show-text switchingback${potty} $INFODELAY" > "$FSFIFO"
+    streame
+    TIME1=${EPOCHREALTIME#*.}
+    IFPAUSE=$(getprop "$FSSOCKET" pause)
+    TIME2=${EPOCHREALTIME#*.}
+    SYSDELAY=$(( ${TIME2:0:3} - ${TIME1:0:3} ))
+    if [ "${SYSDELAY:0:1}" = "-" ];then
+	SYSDELAY=$((1000 + $SYSDELAY))
+    fi
+#    SYSDELAY=0
+    echo "show-text seeking $INFODELAY" > "$PFIFO"
+#    potty="${potty}."
+#    echo "show-text switchingback${potty} 2000" > "$FSFIFO"
+    VOLFS=$(getprop "$FSSOCKET" ao-volume)
+    setprop "$PSOCKET" ao-volume "$VOLFS"
+    srtfile=$(getprop "$FSSOCKET" track-list/2/external-filename)
+    echo "sub-add $srtfile cached" > "$PFIFO"
+    if ! [ "$IFPAUSE" = "true" ]; then
+	if [ $STREAM = true ]; then 
+	    echo "loadfile $(getprop $FSSOCKET path)" > "$PFIFO"
+	    while ! [ "$(getprop $PSOCKET cache-idle)" = "true" ];do
+		    sleep $MINIDELAY
+		    potty="${potty}."
+		    echo "show-text switchingback${potty} $INFODELAY" > "$FSFIFO"
+	    done
+	    echo cycle pause > "$FSFIFO"
+	    echo cycle pause > "$PFIFO"
+	else
+	    SLEEPDELAY=$((300 - $SYSDELAY ))
+	    IFFS=$(getprop "$FSSOCKET" fullscreen)
+	    ( sleep $((SECPLUS - 1)).$SLEEPDELAY
+		echo "show-text switchingback... 600" > "$FSFIFO"
+		if [ "$IFFS" = "true" ]; then echo cycle fullscreen > "$FSFIFO";fi
+		sleep 0.7
+		echo cycle pause > "$FSFIFO"
+		echo cycle pause > "$PFIFO"
+	    ) &
+	    TIMESOURCE=$(getpos "$FSSOCKET" $SECPLUS)
+	    echo "set hr-seek yes" > "$PFIFO"
+	    echo "show-text switchingback.. ${SECPLUS}000" > "$FSFIFO"
+	    echo "seek $TIMESOURCE absolute" > "$PFIFO"
+	fi
+    else
+	if [ $STREAM = true ]; then 
+	    echo "loadfile $(getprop $FSSOCKET path)" > "$PFIFO"
+	else TIMESOURCE=$(getpos "$FSSOCKET" 0)
+	    echo "seek $TIMESOURCE absolute" > "$PFIFO"
+	fi
+    fi
+    wait
+    echo quit > "$FSFIFO"
+    PMPVWIN=$(xdotool search --sync --pid $PMPVPID)
+    xdotool windowactivate $PMPVWIN
+    xdotool windowfocus $PMPVWIN
+#    echo "pmpwin: $PMPVWIN pmpvid: $PMPVPID" >> /tmp/ts.log
+    kill -18 $PMPID
+    ;;
+  fsstart) fsstart "${@}"
+  ;;
+  wstart) wstart "${@}"
+  ;;
+  
+  subload )
+    idpdetect2 "$2"
+    if [ -a "$FSFIFO" ]; then
+        loadsub $FSFIFO
+    else
+        loadsub $PFIFO
+    fi
+  ;;
+
+  ladspa )
+    idpdetect2 "$2"
+    if [ -a "$FSFIFO" ]; then
+        ladspaswitch $FSFIFO
+    else
+        ladspaswitch $PFIFO
+    fi
+  ;;
+
+  mozplug )
+    #    echo `date +"%T.%N"` start >> /tmp/mpvembed
+    shift 1
+    MPVID=$$
+    renice -n -1 $$ 2>/dev/null 1>&2
+    IDP="$PFSTEMPDIR/pfs.$MPVID"
+    trap "rm -rf $IDP.*; exit" SIGHUP SIGINT SIGTERM
+    checkconfig
+
+    #    PMNAME=$(xdotool getwindowfocus getwindowname)
+    #    $(xwininfo -int -name "Pale Moon")
+    PMNAME="$(xdotool getactivewindow getwindowname)"
+    PMPID=$(xdotool getactivewindow getwindowpid)
+    if [ "${PMNAME/Pale Moon/}" = "$PMNAME" ]; then
+    # parent pid kereses, aminek ablaka is van
+	findpid=$PPID
+	winlist=$(wmctrl -lp)
+	while [ "${winlist/[0-9x]*  [0-9] $pmpid  /}" = "${winlist}" ]; do
+	    read pmpid procname c findpid e < /proc/$findpid/stat
+	done
+#    	echo $pmpid $procname $c $findpid $e >> /tmp/temp
+	while read -r wid b lpid host line ; do
+	    if [ "$lpid" = "$pmpid" ];then PMNAME="$line";break;fi
+	done <<< "$winlist"
+	PMPID=$pmpid
+    fi
+    # parent pid done, de ha megse...
+    if [ "$PMNAME" = "" ];then
+	line=$(wmctrl -lp|grep "Pale Moon$")
+	PMPID=${line#*  * }
+	PMPID=${PMPID%% *}
+	PMNAME="${line#*  *  * }"
+    fi
+    TITLE=${PMNAME% - Pale Moon}
+    TITLE=${TITLE%:::*}
+#    PMURL=http${PMNAME##* http}
+#    PMURL=${PMURL/[& ]*/}
+    echo "$PMNAME" > "$IDP.pmname"
+    echo "$TITLE" > "$IDP.title"
+    echo "$PMPID" > "$IDP.pmpid"
+    mkfifo $IDP.fifo
+#	--media-title="mpv_cache by DC-1" \
+    mpv "$@" $voembedded --cache-default=$CACHE --cache=$CACHE --no-ytdl \
+	--force-media-title="$TITLE" $extraparams \
+	-vf expand=::::16/9 \
+	--input-conf="$INPUTVIEWTUBE" \
+	--input-file=$IDP.fifo --input-ipc-server=$IDP.socket &
+    PMPVPID=$!
+    echo "$PMPVPID" > $IDP.pmpvpid
+#    echo `date +"%T.%N"` started >> /tmp/mpvembed
+    PMPVWIN=$(xdotool search --sync --pid $PMPVPID)
+#    xdotool windowactivate $PMPVWIN
+#    xdotool windowfocus $PMPVWIN
+
+    sleep 3
+#    PMURL=$(wmctrl -l | grep -oP '(?<=::: )(http[^ ]+)(?= - Pale Moon$)' ) #'
+    PMURL=$(wmctrl -l | grep -oP ':::.\K[^ ]*' )
+    [ $PMURL ] && echo $PMURL > "$IDP.url"
+#    echo "${PMURL%%&*}" > "$IDP.url"
+
+#    for wfile in sleep gcap nc.openbsd xdpyinfo xdotool; do
+#	if [ "$(which $wfile)" = ""  ]; then 
+#	    echo "show-text \"error: $wfile not found\" 10000" >> $IDP.fifo
+#	    sleep 2
+#	fi
+#    done
+    if [ "$autoloadsub" = "true" ]; then loadsub $IDP.fifo quiet;fi
+    wait
+    rm -rf $IDP.*
+  ;;
+  * ) ;;
+esac
